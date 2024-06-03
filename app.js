@@ -12,7 +12,7 @@ const qs = require('querystring');
 const http = require('http');
 
 function reqPost(request, response) {
-    if (request.method == 'POST') {
+    if (request.method === 'POST' && request.url === '/') {
         let body = '';
 
         request.on('data', function (data) {
@@ -22,7 +22,7 @@ function reqPost(request, response) {
         request.on('end', function () {
             const post = qs.parse(body);
             const sInsert = `INSERT INTO Sector (coordinates, light_intensity, foreign_objects, star_objects_count, unknown_objects_count, defined_objects_count, notes) 
-                            VALUES ("${post['col1']}", 3.4, 5, 30, 2, 28, "Новый сектор")`;
+                            VALUES ("${post['col1']}", ${post['col2']}, ${post['col3']}, ${post['col4']}, ${post['col5']}, ${post['col6']}, "${post['col7']}")`;
             const results = connection.query(sInsert);
             console.log('Done. Hint: ' + sInsert);
         });
@@ -53,22 +53,43 @@ function ViewVer(res) {
     res.write(results[0].ver);
 }
 
-const server = http.createServer((req, res) => {
-    reqPost(req, res);
-    console.log('Loading...');
-
-    res.statusCode = 200;
-
-    const filePath = path.join(__dirname, 'select.html');
-    const array = fs.readFileSync(filePath).toString().split("\n");
-    console.log(filePath);
-    for (let i in array) {
-        if ((array[i].trim() != '@tr') && (array[i].trim() != '@ver')) res.write(array[i]);
-        if (array[i].trim() == '@tr') ViewSelect(res);
-        if (array[i].trim() == '@ver') ViewVer(res);
+function CallJoinTables(res, table1, table2) {
+    const results = connection.query(`CALL JoinTables('${table1}', '${table2}')`);
+    res.write('<tr>');
+    for (let key in results[0]) {
+        res.write('<th>' + key + '</th>');
     }
-    res.end();
-    console.log('1 User Done.');
+    res.write('</tr>');
+
+    for (let row of results) {
+        res.write('<tr>');
+        for (let key in row) {
+            res.write('<td>' + row[key] + '</td>');
+        }
+        res.write('</tr>');
+    }
+}
+
+const server = http.createServer((req, res) => {
+    if (req.url === '/join') {
+        CallJoinTables(res, 'Sector', 'Objects');
+    } else {
+        reqPost(req, res);
+        console.log('Loading...');
+
+        res.statusCode = 200;
+
+        const filePath = path.join(__dirname, 'select.html');
+        const array = fs.readFileSync(filePath).toString().split("\n");
+        console.log(filePath);
+        for (let i in array) {
+            if ((array[i].trim() !== '@tr') && (array[i].trim() !== '@ver')) res.write(array[i]);
+            if (array[i].trim() === '@tr') ViewSelect(res);
+            if (array[i].trim() === '@ver') ViewVer(res);
+        }
+        res.end();
+        console.log('1 User Done.');
+    }
 });
 
 const hostname = '127.0.0.1';
